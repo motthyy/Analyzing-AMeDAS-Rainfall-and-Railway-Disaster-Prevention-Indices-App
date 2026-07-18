@@ -1,0 +1,39 @@
+# 気象庁標準3段タンクモデル 係数設定
+# ------------------------------------------------------------
+# 出典・参考:
+#   気象庁「大雨警報（土壌雨量指数）の危険度分布」解説資料、
+#   気象庁「土壌雨量指数の改善」技術資料（気象庁ホームページ 予報部関連資料）に示される
+#   標準3段タンクモデルの係数体系に基づく。本アプリでは気象庁公表の土壌雨量指数そのものを
+#   再現するものではなく、時別値から均等分配で推定した10分雨量を入力として独自に計算する
+#   「推定土壌雨量指数」であることに留意（詳細は docs/calculation_method.md を参照）。
+#
+# 計算時間刻み: 1/6時間（10分）
+# 各タンクの側方流出は、貯留高が流出孔高さを超えた分にのみ発生する。
+# 底面浸透高は貯留高に比例する。
+
+time_step_hours: 0.16666666666666666  # 1/6 hour = 10 minutes
+
+tank1:
+  outlets:
+    - height_mm: 15.0
+      coefficient_per_hour: 0.10
+    - height_mm: 60.0
+      coefficient_per_hour: 0.15
+  infiltration_coefficient_per_hour: 0.12
+
+tank2:
+  outlets:
+    - height_mm: 15.0
+      coefficient_per_hour: 0.05
+  infiltration_coefficient_per_hour: 0.05
+
+tank3:
+  outlets:
+    - height_mm: 15.0
+      coefficient_per_hour: 0.01
+  infiltration_coefficient_per_hour: 0.01
+
+initial_storage_mm:
+  tank1: 0.0
+  tank2: 0.0
+  tank3: 0.0
