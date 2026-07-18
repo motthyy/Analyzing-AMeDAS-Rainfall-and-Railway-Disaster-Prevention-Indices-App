@@ -45,8 +45,9 @@ def test_return_period_1_year_is_nan() -> None:
 
 
 def test_standard_return_periods_include_required_values() -> None:
-    required = set(range(2, 31)) | {50, 100, 200, 500}
+    required = set(range(2, 31)) | {50, 100}
     assert required.issubset(set(STANDARD_RETURN_PERIODS))
+    assert max(STANDARD_RETURN_PERIODS) == 100
     assert 1 in STANDARD_RETURN_PERIODS
 
 

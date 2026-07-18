@@ -22,7 +22,6 @@ from amedas_rainfall.models import JobStatus
 from amedas_rainfall.storage.repositories import JobRepository
 
 JST = dt.timezone(dt.timedelta(hours=9))
-DEFAULT_BATCH_SIZE = 8
 
 
 def _station_master_path(config: AppConfig):
@@ -137,7 +136,7 @@ def render_station_page(config: AppConfig) -> None:
             height=350,
             margin=dict(t=0, b=0, l=0, r=0),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, theme=None)
 
     st.divider()
     st.subheader("時別降水量の取得可能開始日時の調査")
@@ -186,25 +185,17 @@ def render_station_page(config: AppConfig) -> None:
         "終了日（最新取得可能日）", value=yesterday, max_value=yesterday, key="station_plan_end"
     )
 
-    wait_seconds = st.slider(
-        "通常待機時間（秒）", min_value=2.0, max_value=10.0,
-        value=float(config.get("download.normal_wait_seconds", 3.0)), step=0.5,
-        key="station_wait_seconds",
-    )
-    batch_size = st.number_input(
-        "1回のボタン操作で処理する期間数", min_value=1, max_value=50, value=DEFAULT_BATCH_SIZE,
-        key="station_batch_size",
-    )
-
     st.caption(
-        "Streamlitの実行モデル上、1回の操作は指定した期間数のバッチ単位で実行されます。"
+        "ダウンロード開始を押すと、1件ずつ順番に取得・保存を確認しながら最新データまで自動的に"
+        "続けて取得します（気象庁サイトへの負荷対策として待機時間を挟みます）。"
+        "失敗した期間は自動的に次の期間へ進み、後で「失敗期間を再試行対象に戻す」からやり直せます。"
         "ジョブ状態はSQLiteに保存されるため、アプリを閉じても次回起動時に続きから再開できます。"
     )
 
     db_path = config.resolved_path("paths.jobs_db")
     job_repo = JobRepository(db_path)
     manager_config = DownloadManagerConfig(
-        normal_wait_seconds=wait_seconds,
+        normal_wait_seconds=config.get("download.normal_wait_seconds", 3.0),
         min_wait_seconds=config.get("download.min_wait_seconds", 2.0),
         retry_wait_seconds=tuple(config.get("download.retry_wait_seconds", [10, 30, 120])),
         max_retries_per_span=config.get("download.max_retries_per_span", 5),
@@ -230,36 +221,25 @@ def render_station_page(config: AppConfig) -> None:
         )
         st.dataframe(jobs_df, use_container_width=True, height=250)
 
-        n_pending = sum(1 for j in jobs if j.status in (JobStatus.PENDING, JobStatus.RETRY_WAIT))
-        n_success = sum(1 for j in jobs if j.status in (JobStatus.SUCCESS, JobStatus.VALIDATED))
-        n_failed = sum(1 for j in jobs if j.status == JobStatus.FAILED)
-        st.caption(f"完了: {n_success} / 未完了: {n_pending} / 失敗: {n_failed} / 合計: {len(jobs)}")
+        non_split_jobs = [j for j in jobs if j.status != JobStatus.SPLIT]
+        n_pending = sum(1 for j in non_split_jobs if j.status in (JobStatus.PENDING, JobStatus.RETRY_WAIT))
+        n_success = sum(1 for j in non_split_jobs if j.status in (JobStatus.SUCCESS, JobStatus.VALIDATED))
+        n_failed = sum(1 for j in non_split_jobs if j.status == JobStatus.FAILED)
+        n_total = len(non_split_jobs)
+        st.caption(f"完了: {n_success} / 未完了: {n_pending} / 失敗: {n_failed} / 合計: {n_total}")
 
         b1, b2, b3 = st.columns(3)
-        log_area = st.empty()
         with b1:
-            if st.button("次のバッチを実行", key="station_run_batch_button"):
-                logs: list[str] = []
-                count = 0
-
-                def _progress(msg: str) -> None:
-                    logs.append(msg)
-                    log_area.text("\n".join(logs[-20:]))
-
-                def _stop() -> bool:
-                    nonlocal count
-                    count += 1
-                    return count > batch_size
-
-                manager.run(selected_code, station_row["station_name"], progress_callback=_progress, stop_flag=_stop)
-                st.rerun()
+            start_download = st.button(
+                "ダウンロード開始", key="station_run_batch_button", type="primary", use_container_width=True
+            )
         with b2:
             if st.button("失敗期間を再試行対象に戻す", key="station_retry_failed_button"):
                 n = manager.retry_failed(selected_code)
                 st.success(f"{n}件のジョブを再試行対象(PENDING)に戻しました。")
                 st.rerun()
         with b3:
-            if st.button("正規化データを再構築", key="station_rebuild_normalized_button"):
+            if st.button("データ解析", key="station_rebuild_normalized_button"):
                 from amedas_rainfall.pipeline import rebuild_normalized_from_raw
 
                 try:
@@ -267,5 +247,31 @@ def render_station_page(config: AppConfig) -> None:
                     st.success(f"正規化データを再構築しました（{len(merged)}時間分）。")
                 except FileNotFoundError as exc:
                     st.error(str(exc))
+
+        if start_download:
+            status_banner = st.empty()
+            progress_bar = st.progress(0.0)
+            percent_text = st.empty()
+            log_area = st.empty()
+            status_banner.info("ダウンロード中...")
+            logs: list[str] = []
+
+            def _progress(msg: str) -> None:
+                logs.append(msg)
+                log_area.text("\n".join(logs[-20:]))
+                current_jobs = [j for j in job_repo.get_jobs_for_station(selected_code) if j.status != JobStatus.SPLIT]
+                total = len(current_jobs) or 1
+                done = sum(
+                    1 for j in current_jobs if j.status in (JobStatus.SUCCESS, JobStatus.VALIDATED, JobStatus.FAILED)
+                )
+                ratio = min(done / total, 1.0)
+                progress_bar.progress(ratio)
+                percent_text.text(f"{done}/{total}件 完了（{ratio * 100:.0f}%）")
+
+            manager.run(selected_code, station_row["station_name"], progress_callback=_progress)
+
+            status_banner.success("ダウンロードが完了しました。")
+            progress_bar.progress(1.0)
+            st.rerun()
     else:
         st.info("まだダウンロード計画がありません。「ダウンロード計画を作成/更新」を押してください。")

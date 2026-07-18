@@ -122,7 +122,7 @@ def render_timeseries_page(config: AppConfig) -> None:
 
     missing_mask = view["is_missing"] if "is_missing" in view.columns else None
     fig = build_timeseries_figure(view, bar_column, selected_indicators, style, missing_mask=missing_mask)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     st.subheader("画像出力")
     fmt = st.selectbox("形式", ["png", "svg", "pdf"], key="ts_fmt")

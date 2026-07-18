@@ -14,7 +14,7 @@ from amedas_rainfall.pipeline import (
     load_normalized_hourly,
     normalized_hourly_path,
 )
-from amedas_rainfall.statistics.bootstrap import bootstrap_return_period_ci, sample_size_warnings
+from amedas_rainfall.statistics.bootstrap import sample_size_warnings
 from amedas_rainfall.statistics.gumbel import STANDARD_RETURN_PERIODS, analyze_gumbel
 from amedas_rainfall.visualization.export import build_export_filename, export_figure
 from amedas_rainfall.visualization.probability import build_probability_figure
@@ -115,29 +115,10 @@ def render_probability_page(config: AppConfig) -> None:
     with c5:
         x_log = st.checkbox("横軸を対数表示", value=True, key="prob_x_log")
 
-    c6, c7 = st.columns(2)
-    with c6:
-        ci_level = st.slider(
-            "信頼水準", min_value=0.5, max_value=0.99, value=0.95, step=0.01, key="prob_ci_level"
-        )
-    with c7:
-        n_boot = st.number_input(
-            "ブートストラップ回数", min_value=100, max_value=20000, value=1000, step=100, key="prob_n_boot"
-        )
-    seed = st.number_input("乱数シード", min_value=0, max_value=2**31 - 1, value=42, key="prob_seed")
-
     for w in sample_size_warnings(len(annual_maxima_values), max(STANDARD_RETURN_PERIODS)):
         st.warning(w)
 
     gumbel_result = analyze_gumbel(annual_maxima_values, method=method, plotting_position=plotting_position)
-    bootstrap_results = bootstrap_return_period_ci(
-        annual_maxima_values,
-        STANDARD_RETURN_PERIODS,
-        method=method,
-        n_iterations=int(n_boot),
-        confidence_level=ci_level,
-        random_seed=int(seed),
-    )
 
     with st.expander("グラフ調整"):
         style = PlotStyle(title=f"{station_name} 確率雨量（{INDICATOR_LABELS_JA[indicator]}・{BOUNDARY_LABELS[boundary_key]}）")
@@ -146,32 +127,26 @@ def render_probability_page(config: AppConfig) -> None:
         style.dpi = st.selectbox("DPI(PNG用)", [300, 600, 1200], key="prob_fig_dpi")
         show_observed = st.checkbox("観測点表示", value=True, key="prob_show_observed")
         show_fit_line = st.checkbox("適合線表示", value=True, key="prob_show_fit_line")
-        show_ci = st.checkbox("信頼区間表示", value=True, key="prob_show_ci")
 
     fig = build_probability_figure(
         annual_maxima_values,
         gumbel_result,
         style,
         plotting_position=plotting_position,
-        bootstrap_results=bootstrap_results if show_ci else None,
         show_observed=show_observed,
         show_fit_line=show_fit_line,
-        show_ci=show_ci,
         x_log=x_log,
         indicator_label=INDICATOR_LABELS_JA[indicator],
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
-    st.subheader("確率雨量表")
+    st.subheader("確率雨量表（確率年1〜30・50・100年）")
     table_rows = []
     for t, x in zip(gumbel_result.return_periods, gumbel_result.estimates_mm):
-        ci = bootstrap_results.get(t)
         table_rows.append(
             {
                 "確率年": t,
                 "確率雨量[mm]": "算出不可" if np.isnan(x) else round(x, 1),
-                f"信頼区間下限({ci_level*100:.0f}%)": None if ci is None or np.isnan(ci.lower) else round(ci.lower, 1),
-                f"信頼区間上限({ci_level*100:.0f}%)": None if ci is None or np.isnan(ci.upper) else round(ci.upper, 1),
             }
         )
     st.dataframe(pd.DataFrame(table_rows), use_container_width=True, height=300)

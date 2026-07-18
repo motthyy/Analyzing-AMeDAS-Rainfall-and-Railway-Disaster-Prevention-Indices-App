@@ -19,6 +19,7 @@ import streamlit as st  # noqa: E402
 
 from amedas_rainfall.config import get_default_config  # noqa: E402
 from amedas_rainfall.ui.export_page import render_export_page  # noqa: E402
+from amedas_rainfall.ui.manual_page import render_manual_page  # noqa: E402
 from amedas_rainfall.ui.probability_page import render_probability_page  # noqa: E402
 from amedas_rainfall.ui.quality_page import render_quality_page  # noqa: E402
 from amedas_rainfall.ui.station_page import render_station_page  # noqa: E402
@@ -55,7 +56,9 @@ def main() -> None:
         "鉄道防災用雨量指標・推定土壌雨量指数・ガンベル分布による確率雨量の解析ツールです。"
     )
 
-    tabs = st.tabs(["地点選択・ダウンロード", "データ品質", "時系列グラフ", "確率雨量グラフ", "データ出力"])
+    tabs = st.tabs(
+        ["地点選択・ダウンロード", "データ品質", "時系列グラフ", "確率雨量グラフ", "データ出力", "マニュアル"]
+    )
     with tabs[0]:
         render_station_page(config)
     with tabs[1]:
@@ -66,6 +69,8 @@ def main() -> None:
         render_probability_page(config)
     with tabs[4]:
         render_export_page(config)
+    with tabs[5]:
+        render_manual_page(config)
 
 
 if __name__ == "__main__":

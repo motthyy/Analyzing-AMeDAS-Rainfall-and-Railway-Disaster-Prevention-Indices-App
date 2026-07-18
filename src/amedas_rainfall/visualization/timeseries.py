@@ -112,16 +112,26 @@ def _apply_common_layout(fig: go.Figure, style: PlotStyle) -> None:
     fig.update_layout(
         width=style.width_px(),
         height=style.height_px(),
-        title=dict(text=style.title, font=dict(size=style.font_size + 4)),
-        font=dict(family=style.font_family, size=style.font_size),
-        legend=dict(font=dict(size=style.legend_size)),
+        title=dict(text=style.title, font=dict(size=style.font_size + 4, color=style.font_color)),
+        font=dict(family=style.font_family, size=style.font_size, color=style.font_color),
+        legend=dict(
+            font=dict(size=style.legend_size, color=style.font_color),
+            bgcolor=style.background_color,
+            bordercolor="#cccccc",
+            borderwidth=1,
+        ),
         plot_bgcolor=style.background_color,
         paper_bgcolor=style.background_color,
         margin=dict(
             t=style.margin_top, b=style.margin_bottom, l=style.margin_left, r=style.margin_right
         ),
         barmode="overlay",
+        hovermode="x unified",
+        hoverlabel=dict(font=dict(color=style.font_color)),
     )
+    # サブプロットの見出し（make_subplotsが自動追加する注釈）にも明示的に文字色を適用する
+    fig.update_annotations(font=dict(color=style.font_color))
+
     if style.subtitle:
         fig.add_annotation(
             text=style.subtitle,
@@ -130,7 +140,7 @@ def _apply_common_layout(fig: go.Figure, style: PlotStyle) -> None:
             x=0.5,
             y=1.06,
             showarrow=False,
-            font=dict(size=style.font_size),
+            font=dict(size=style.font_size, color=style.font_color),
         )
     if style.note:
         fig.add_annotation(
@@ -140,20 +150,42 @@ def _apply_common_layout(fig: go.Figure, style: PlotStyle) -> None:
             x=0.0,
             y=-0.18,
             showarrow=False,
-            font=dict(size=max(style.font_size - 2, 8)),
+            font=dict(size=max(style.font_size - 2, 8), color=style.font_color),
             align="left",
         )
     fig.update_xaxes(
         showgrid=style.show_grid,
+        gridcolor="#e0e0e0",
         minor=dict(showgrid=style.show_minor_grid),
-        tickfont=dict(size=style.tick_size),
-        title_font=dict(size=style.axis_label_size),
+        tickfont=dict(size=style.tick_size, color=style.font_color),
+        title_font=dict(size=style.axis_label_size, color=style.font_color),
+        showline=style.show_frame,
+        linecolor=style.font_color,
+        mirror=style.show_frame,
+        ticks="outside",
+        showspikes=style.show_crosshair,
+        spikemode="across",
+        spikesnap="cursor",
+        spikedash="dot",
+        spikethickness=1,
+        spikecolor="#666666",
     )
     fig.update_yaxes(
         showgrid=style.show_grid,
+        gridcolor="#e0e0e0",
         minor=dict(showgrid=style.show_minor_grid),
-        tickfont=dict(size=style.tick_size),
-        title_font=dict(size=style.axis_label_size),
+        tickfont=dict(size=style.tick_size, color=style.font_color),
+        title_font=dict(size=style.axis_label_size, color=style.font_color),
+        showline=style.show_frame,
+        linecolor=style.font_color,
+        mirror=style.show_frame,
+        ticks="outside",
+        showspikes=style.show_crosshair,
+        spikemode="across",
+        spikesnap="cursor",
+        spikedash="dot",
+        spikethickness=1,
+        spikecolor="#666666",
     )
     if style.x_range:
         fig.update_xaxes(range=list(style.x_range))

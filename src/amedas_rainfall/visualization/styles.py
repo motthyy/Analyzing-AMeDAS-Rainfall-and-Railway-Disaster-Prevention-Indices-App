@@ -63,6 +63,7 @@ class PlotStyle:
     axis_label_size: int = 14
     tick_size: int = 12
     legend_size: int = 12
+    font_color: str = "#111111"
 
     line_width: float = 2.0
     bar_width: float = 0.8
@@ -72,6 +73,8 @@ class PlotStyle:
     background_color: str = "#ffffff"
     show_grid: bool = True
     show_minor_grid: bool = False
+    show_frame: bool = True
+    show_crosshair: bool = True
     legend_position: str = "top"  # top | bottom | right
 
     title: str = ""

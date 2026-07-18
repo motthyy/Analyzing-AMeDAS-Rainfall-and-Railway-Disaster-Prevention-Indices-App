@@ -10,7 +10,7 @@ from scipy import stats
 
 EULER_MASCHERONI = 0.5772156649015329
 
-STANDARD_RETURN_PERIODS: list[float] = list(range(1, 31)) + [50, 100, 200, 500]
+STANDARD_RETURN_PERIODS: list[float] = list(range(1, 31)) + [50, 100]
 
 PLOTTING_POSITION_FORMULAS = {
     "gringorten": (0.44, 0.12),
