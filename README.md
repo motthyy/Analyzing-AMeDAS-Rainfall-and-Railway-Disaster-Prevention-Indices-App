@@ -163,6 +163,7 @@ logs/app_YYYYMMDD.log                   ログ
 | Playwright予備手段が使えない | `.venv\Scripts\python.exe -m playwright install chromium` を再実行してください |
 | 日本語フォントが文字化けする | Windows標準のYu Gothic/Meiryoが利用できない環境では自動的にsans-serifへフォールバックします |
 | Excel出力が省略される | 時別データの行数がExcelの上限(約104万行)に近い場合、Excelシートは省略されCSV/Parquetの利用が案内されます |
+| アプリを更新したのに画面が変わらない／`removeChild`等のエラーが出る | `run.bat`を複数回実行すると古いプロセスが残ったままになり、ブラウザが古い方につながり続けることがあります。タスクマネージャーで残っている`python.exe`（コマンドラインに`streamlit`を含むもの）を全て終了し、`run.bat`を1つだけ起動し直した上で、ブラウザを再読み込み（Ctrl+F5）してください |
 
 ## 18. 気象庁サイトの仕様変更に備えて
 
