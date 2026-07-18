@@ -69,6 +69,8 @@ streamlit run app.py
 
 ブラウザで `http://localhost:8501` が自動的に開きます。
 
+毎回コマンドを入力するのが手間な場合は、`create_desktop_shortcut.bat` を実行してください。デスクトップに `Amedas Rainfall App` という名前のショートカットが作成され、以後はダブルクリックで起動できます（`install.bat`実行後に一度だけ実行すればOKです）。
+
 ## 5. 地点選択
 
 「地点選択・ダウンロード」タブで:
