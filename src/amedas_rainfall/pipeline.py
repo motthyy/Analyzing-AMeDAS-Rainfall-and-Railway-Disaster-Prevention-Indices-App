@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
+from typing import Callable
 
 import pandas as pd
 
@@ -41,6 +42,12 @@ INDICATOR_COLUMNS_FOR_ANNUAL_MAXIMA = [
 def normalized_hourly_path(config: AppConfig, station_code: str) -> Path:
     base = config.resolved_path("paths.normalized_dir")
     return base / station_code / "hourly.parquet"
+
+
+def indices_cache_path(config: AppConfig, station_code: str) -> Path:
+    """計算済み指標（compute_all_indicesの結果）のキャッシュ保存先。"""
+    base = config.resolved_path("paths.calculated_dir")
+    return base / station_code / "indices.parquet"
 
 
 def raw_station_dir(config: AppConfig, station_code: str, station_name: str) -> Path:
@@ -77,25 +84,85 @@ def load_normalized_hourly(config: AppConfig, station_code: str) -> pd.DataFrame
     return pd.read_parquet(path)
 
 
-def compute_all_indices(config: AppConfig, hourly_df: pd.DataFrame) -> pd.DataFrame:
-    """全ての雨量指標（8節・9節）をまとめて計算する。"""
+def compute_all_indices(
+    config: AppConfig,
+    hourly_df: pd.DataFrame,
+    progress_callback: Callable[[float, str], None] | None = None,
+) -> pd.DataFrame:
+    """全ての雨量指標（8節・9節）をまとめて計算する。
+
+    Args:
+        progress_callback: (進捗率0.0〜1.0, 状況メッセージ) を通知するコールバック。
+            推定土壌雨量指数（3段タンクモデル、10分刻み）が最も計算量が多いため、
+            その内部進捗もこの範囲へマッピングして報告する。
+    """
+
+    def _report(fraction: float, message: str) -> None:
+        if progress_callback is not None:
+            progress_callback(fraction, message)
+
     used = hourly_df["rainfall_used_mm"]
 
+    _report(0.0, "連続雨量を計算しています...")
     continuous = calculate_continuous_rainfall(used, dry_hours_reset=config.get("rainfall.dry_hours_reset", 12))
+
+    _report(0.05, "24時間移動雨量を計算しています...")
     rolling = calculate_rolling_rainfall(used, window_hours=config.get("rainfall.rolling_window_hours", 24))
+
+    _report(0.10, "実効雨量を計算しています...")
     effective = calculate_all_effective_rainfall(
         used, half_lives_hours=config.get("rainfall.effective_half_lives_hours", [1.5, 6, 24])
     )
 
+    _report(0.15, "推定土壌雨量指数を計算しています...")
     tank_raw = load_tank_model_config()
     tank_config = TankModelConfig.from_dict(tank_raw)
-    tank_10min, tank_hourly = calculate_estimated_soil_rainfall_index(used, tank_config)
 
+    def _tank_progress(fraction: float) -> None:
+        _report(0.15 + fraction * 0.80, "推定土壌雨量指数を計算しています...")
+
+    tank_10min, tank_hourly = calculate_estimated_soil_rainfall_index(
+        used, tank_config, progress_callback=_tank_progress
+    )
+
+    _report(0.95, "計算結果をまとめています...")
     result = hourly_df.copy()
     result = result.join(continuous, how="left")
     result = result.join(rolling, how="left")
     result = result.join(effective, how="left", rsuffix="_eff")
     result = result.join(tank_hourly, how="left")
+
+    _report(1.0, "計算が完了しました。")
+    return result
+
+
+def load_or_compute_all_indices(
+    config: AppConfig,
+    station_code: str,
+    hourly_df: pd.DataFrame | None = None,
+    force_recompute: bool = False,
+    progress_callback: Callable[[float, str], None] | None = None,
+) -> pd.DataFrame:
+    """指標計算結果をキャッシュから読み込む。なければ計算してキャッシュに保存する。
+
+    キャッシュ（data/calculated/{地点コード}/indices.parquet）は、正規化済み
+    時別データ（hourly.parquet）よりも新しい場合にのみ有効とみなす。
+    正規化データが更新された場合は自動的に再計算される。
+    """
+    cache_path = indices_cache_path(config, station_code)
+    hourly_path = normalized_hourly_path(config, station_code)
+
+    if not force_recompute and cache_path.exists() and hourly_path.exists():
+        if cache_path.stat().st_mtime >= hourly_path.stat().st_mtime:
+            return pd.read_parquet(cache_path)
+
+    if hourly_df is None:
+        hourly_df = load_normalized_hourly(config, station_code)
+
+    result = compute_all_indices(config, hourly_df, progress_callback=progress_callback)
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    result.to_parquet(cache_path)
     return result
 
 

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -107,8 +108,13 @@ def _infiltration_mm(storage_mm: float, spec: TankSpec, dt_hours: float) -> floa
 def run_tank_model_10min(
     rainfall_10min_mm: pd.Series,
     config: TankModelConfig,
+    progress_callback: "Callable[[float], None] | None" = None,
 ) -> pd.DataFrame:
     """10分刻みで3段タンクモデルを実行する。
+
+    Args:
+        progress_callback: 進捗（0.0〜1.0）を通知するコールバック。演算量が多いため
+            （時別データ1件につき6ステップ）、呼び出し頻度は全体を約200分割した間隔に間引く。
 
     Returns:
         10分刻みのタンク貯留量・流出量・浸透量を持つDataFrame。
@@ -133,7 +139,11 @@ def run_tank_model_10min(
     cur3 = config.initial_storage_mm.get("tank3", 0.0)
     pending_reset = True
 
+    report_interval = max(1, n // 200)
+
     for i in range(n):
+        if progress_callback is not None and i % report_interval == 0:
+            progress_callback(i / n)
         rain = values[i]
         if np.isnan(rain):
             pending_reset = True
@@ -200,6 +210,7 @@ def aggregate_tank_result_to_hourly(tank_10min: pd.DataFrame) -> pd.DataFrame:
 def calculate_estimated_soil_rainfall_index(
     rainfall_used_mm: pd.Series,
     config: TankModelConfig,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """推定10分雨量からタンクモデルを実行し、10分値と時別値の両方を返す。
 
@@ -207,6 +218,6 @@ def calculate_estimated_soil_rainfall_index(
         (10分刻みDataFrame, 時別DataFrame) のタプル。
     """
     rainfall_10min = disaggregate_hourly_to_10min(rainfall_used_mm)
-    tank_10min = run_tank_model_10min(rainfall_10min, config)
+    tank_10min = run_tank_model_10min(rainfall_10min, config, progress_callback=progress_callback)
     tank_hourly = aggregate_tank_result_to_hourly(tank_10min)
     return tank_10min, tank_hourly

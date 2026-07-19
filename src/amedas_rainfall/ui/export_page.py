@@ -9,9 +9,7 @@ import streamlit as st
 
 from amedas_rainfall.config import AppConfig
 from amedas_rainfall.pipeline import (
-    compute_all_indices,
     compute_annual_maxima_all_boundaries,
-    load_normalized_hourly,
     normalized_hourly_path,
 )
 from amedas_rainfall.reporting import (
@@ -21,6 +19,7 @@ from amedas_rainfall.reporting import (
 )
 from amedas_rainfall.statistics.annual_maxima import ALL_YEAR_BOUNDARIES
 from amedas_rainfall.statistics.gumbel import STANDARD_RETURN_PERIODS, analyze_gumbel
+from amedas_rainfall.ui.common import ensure_indices_loaded
 
 
 def render_export_page(config: AppConfig) -> None:
@@ -37,11 +36,7 @@ def render_export_page(config: AppConfig) -> None:
         st.warning("正規化済みデータがありません。")
         return
 
-    cache_key = f"indices_df_{station_code}"
-    if cache_key not in st.session_state:
-        hourly = load_normalized_hourly(config, station_code)
-        st.session_state[cache_key] = compute_all_indices(config, hourly)
-    indices_df = st.session_state[cache_key]
+    indices_df = ensure_indices_loaded(config, station_code)
 
     basename = f"{station_code}_{station_name}"
 

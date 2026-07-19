@@ -239,14 +239,43 @@ def render_station_page(config: AppConfig) -> None:
                 st.success(f"{n}件のジョブを再試行対象(PENDING)に戻しました。")
                 st.rerun()
         with b3:
-            if st.button("データ解析", key="station_rebuild_normalized_button"):
-                from amedas_rainfall.pipeline import rebuild_normalized_from_raw
+            start_analysis = st.button(
+                "データ解析", key="station_rebuild_normalized_button", use_container_width=True
+            )
 
-                try:
-                    merged = rebuild_normalized_from_raw(config, selected_code, station_row["station_name"])
-                    st.success(f"正規化データを再構築しました（{len(merged)}時間分）。")
-                except FileNotFoundError as exc:
-                    st.error(str(exc))
+        if start_analysis:
+            from amedas_rainfall.pipeline import load_or_compute_all_indices, rebuild_normalized_from_raw
+
+            analysis_status = st.empty()
+            analysis_progress = st.progress(0.0)
+            analysis_percent = st.empty()
+            analysis_status.info("データ解析中...")
+
+            try:
+                merged = rebuild_normalized_from_raw(config, selected_code, station_row["station_name"])
+                analysis_percent.text(f"正規化データを統合しました（{len(merged)}時間分）。指標を計算しています...")
+
+                def _analysis_progress(fraction: float, message: str) -> None:
+                    ratio = min(max(fraction, 0.0), 1.0)
+                    analysis_progress.progress(ratio)
+                    analysis_percent.text(f"{message}（{ratio * 100:.0f}%）")
+
+                indices_df = load_or_compute_all_indices(
+                    config,
+                    selected_code,
+                    hourly_df=merged,
+                    force_recompute=True,
+                    progress_callback=_analysis_progress,
+                )
+                st.session_state[f"indices_df_{selected_code}"] = indices_df
+
+                analysis_progress.progress(1.0)
+                analysis_status.success(
+                    f"データ解析が完了しました（{len(merged)}時間分）。"
+                    "計算結果は保存されるため、次回以降は再計算不要です。"
+                )
+            except FileNotFoundError as exc:
+                analysis_status.error(str(exc))
 
         if start_download:
             status_banner = st.empty()

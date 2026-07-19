@@ -8,13 +8,12 @@ import streamlit as st
 
 from amedas_rainfall.config import AppConfig
 from amedas_rainfall.pipeline import (
-    compute_all_indices,
     compute_annual_maxima_all_boundaries,
     compute_completeness_all_boundaries,
-    load_normalized_hourly,
     normalized_hourly_path,
 )
 from amedas_rainfall.statistics.bootstrap import sample_size_warnings
+from amedas_rainfall.ui.common import ensure_indices_loaded
 from amedas_rainfall.statistics.gumbel import STANDARD_RETURN_PERIODS, analyze_gumbel
 from amedas_rainfall.visualization.export import build_export_filename, export_figure
 from amedas_rainfall.visualization.probability import build_probability_figure
@@ -47,11 +46,7 @@ def render_probability_page(config: AppConfig) -> None:
         st.warning("正規化済みデータがありません。先にダウンロードと正規化データの再構築を行ってください。")
         return
 
-    cache_key = f"indices_df_{station_code}"
-    if cache_key not in st.session_state:
-        hourly = load_normalized_hourly(config, station_code)
-        st.session_state[cache_key] = compute_all_indices(config, hourly)
-    indices_df = st.session_state[cache_key]
+    indices_df = ensure_indices_loaded(config, station_code)
 
     c1, c2 = st.columns(2)
     with c1:

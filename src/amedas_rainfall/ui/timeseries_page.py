@@ -8,7 +8,8 @@ import pandas as pd
 import streamlit as st
 
 from amedas_rainfall.config import AppConfig
-from amedas_rainfall.pipeline import compute_all_indices, load_normalized_hourly, normalized_hourly_path
+from amedas_rainfall.pipeline import normalized_hourly_path
+from amedas_rainfall.ui.common import ensure_indices_loaded
 from amedas_rainfall.visualization.export import build_export_filename, export_figure, save_plot_settings
 from amedas_rainfall.visualization.styles import PlotStyle
 from amedas_rainfall.visualization.timeseries import INDICATOR_LABELS, build_timeseries_figure
@@ -44,16 +45,10 @@ def render_timeseries_page(config: AppConfig) -> None:
         st.warning("正規化済みデータがありません。先にダウンロードと正規化データの再構築を行ってください。")
         return
 
-    cache_key = f"indices_df_{station_code}"
-    if cache_key not in st.session_state:
-        with st.spinner("指標を計算しています..."):
-            hourly = load_normalized_hourly(config, station_code)
-            st.session_state[cache_key] = compute_all_indices(config, hourly)
-    indices_df = st.session_state[cache_key]
+    indices_df = ensure_indices_loaded(config, station_code)
 
     if st.button("指標を再計算する", key="ts_recompute_button"):
-        hourly = load_normalized_hourly(config, station_code)
-        st.session_state[cache_key] = compute_all_indices(config, hourly)
+        ensure_indices_loaded(config, station_code, force_recompute=True)
         st.rerun()
 
     st.subheader("表示期間")
