@@ -130,12 +130,21 @@ class DownloadManager:
         station_name: str,
         progress_callback: Callable[[str], None] | None = None,
         stop_flag: Callable[[], bool] | None = None,
+        max_jobs: int | None = None,
     ) -> None:
-        """未完了ジョブを順に実行する。中断された場合、次回呼び出しで続きから再開できる。"""
+        """未完了ジョブを順に実行する。中断された場合、次回呼び出しで続きから再開できる。
+
+        Args:
+            max_jobs: 1回の呼び出しで処理するジョブ数の上限。Noneの場合は全件を処理する。
+                Streamlit UIから呼び出す場合、件数が多いと1回のスクリプト実行が長時間ブロック
+                され画面が無応答になるため、小さい値を指定して複数回に分けて呼び出すこと
+                （ui/station_page.pyの自動継続ループを参照）。
+        """
         station_dir = self.raw_dir / f"{station_code}_{station_name}"
         station_dir.mkdir(parents=True, exist_ok=True)
 
-        while True:
+        processed = 0
+        while max_jobs is None or processed < max_jobs:
             if stop_flag and stop_flag():
                 logger.info("ユーザー操作により一時停止しました。")
                 return
@@ -144,7 +153,10 @@ class DownloadManager:
                 return
             job = jobs[0]
             self._execute_job(job, station_dir, progress_callback)
+            processed += 1
             time.sleep(max(self.config.normal_wait_seconds, self.config.min_wait_seconds))
+            if max_jobs is not None and processed >= max_jobs:
+                return
 
     def _execute_job(self, job, station_dir: Path, progress_callback: Callable[[str], None] | None) -> None:
         assert job.job_id is not None

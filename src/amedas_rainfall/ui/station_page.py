@@ -23,6 +23,12 @@ from amedas_rainfall.storage.repositories import JobRepository
 
 JST = dt.timezone(dt.timedelta(hours=9))
 
+DOWNLOAD_CHUNK_SIZE = 3
+"""1回のStreamlitスクリプト実行で処理するダウンロードジョブ数の上限。
+
+大きくすると1回あたりの処理時間が延び画面の応答性が下がり、小さくすると
+st.rerun()の呼び出し回数が増える（オーバーヘッドは小さい）。"""
+
 
 def _station_master_path(config: AppConfig):
     return config.resolved_path("paths.station_master_dir") / "stations.parquet"
@@ -228,10 +234,14 @@ def render_station_page(config: AppConfig) -> None:
         n_total = len(non_split_jobs)
         st.caption(f"完了: {n_success} / 未完了: {n_pending} / 失敗: {n_failed} / 合計: {n_total}")
 
-        b1, b2, b3 = st.columns(3)
+        auto_run_key = f"auto_download_running_{selected_code}"
+        is_running = st.session_state.get(auto_run_key, False)
+
+        b1, b2, b3, b4 = st.columns(4)
         with b1:
             start_download = st.button(
-                "ダウンロード開始", key="station_run_batch_button", type="primary", use_container_width=True
+                "ダウンロード開始", key="station_run_batch_button", type="primary",
+                use_container_width=True, disabled=is_running,
             )
         with b2:
             if st.button("失敗期間を再試行対象に戻す", key="station_retry_failed_button"):
@@ -240,7 +250,13 @@ def render_station_page(config: AppConfig) -> None:
                 st.rerun()
         with b3:
             start_analysis = st.button(
-                "データ解析", key="station_rebuild_normalized_button", use_container_width=True
+                "データ解析", key="station_rebuild_normalized_button", use_container_width=True,
+                disabled=is_running,
+            )
+        with b4:
+            stop_download = st.button(
+                "ダウンロード停止", key="station_stop_download_button", use_container_width=True,
+                disabled=not is_running,
             )
 
         if start_analysis:
@@ -278,11 +294,24 @@ def render_station_page(config: AppConfig) -> None:
                 analysis_status.error(str(exc))
 
         if start_download:
+            st.session_state[auto_run_key] = True
+            is_running = True
+
+        if stop_download:
+            st.session_state[auto_run_key] = False
+            is_running = False
+            st.info("ダウンロードを停止しました。「ダウンロード開始」で未完了ジョブから再開できます。")
+
+        if is_running:
+            # 1回のスクリプト実行では少数のジョブのみ処理し、st.rerun()で次の
+            # チャンクへ進む。全ジョブを1回のブロッキング呼び出しで処理すると、
+            # 数十年分のダウンロードで数分間ブラウザが無応答になる(フリーズする)ため、
+            # ジョブ数の多いダウンロードでも画面の応答性を保つための対策である。
             status_banner = st.empty()
             progress_bar = st.progress(0.0)
             percent_text = st.empty()
             log_area = st.empty()
-            status_banner.info("ダウンロード中...")
+            status_banner.info("ダウンロード中...（少しずつ進み、途中で「ダウンロード停止」を押せます）")
             logs: list[str] = []
 
             def _progress(msg: str) -> None:
@@ -297,10 +326,18 @@ def render_station_page(config: AppConfig) -> None:
                 progress_bar.progress(ratio)
                 percent_text.text(f"{done}/{total}件 完了（{ratio * 100:.0f}%）")
 
-            manager.run(selected_code, station_row["station_name"], progress_callback=_progress)
+            manager.run(
+                selected_code, station_row["station_name"], progress_callback=_progress,
+                max_jobs=DOWNLOAD_CHUNK_SIZE,
+            )
 
-            status_banner.success("ダウンロードが完了しました。")
-            progress_bar.progress(1.0)
-            st.rerun()
+            remaining = manager.job_repo.get_actionable_jobs(selected_code)
+            if remaining:
+                st.rerun()
+            else:
+                st.session_state[auto_run_key] = False
+                status_banner.success("ダウンロードが完了しました。")
+                progress_bar.progress(1.0)
+                st.rerun()
     else:
         st.info("まだダウンロード計画がありません。「ダウンロード計画を作成/更新」を押してください。")
