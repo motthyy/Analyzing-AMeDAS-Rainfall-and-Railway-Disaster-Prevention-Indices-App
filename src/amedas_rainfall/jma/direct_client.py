@@ -22,6 +22,8 @@ from dataclasses import dataclass
 import requests
 from bs4 import BeautifulSoup
 
+from amedas_rainfall.jma.ca_bundle import ensure_ca_bundle_path
+
 logger = logging.getLogger(__name__)
 
 INDEX_URL = "https://www.data.jma.go.jp/gmd/risk/obsdl/index.php"
@@ -126,6 +128,13 @@ class JmaDirectClient:
                 "Referer": INDEX_URL,
             }
         )
+        # 社内SSLインスペクションプロキシ配下ではcertifi同梱のCA一覧だけでは
+        # 検証に失敗するため、Windows証明書ストアも信頼元に加える。
+        # プロキシが存在しない環境ではNoneが返り、requests標準の検証(certifi)
+        # にフォールバックする。
+        ca_bundle_path = ensure_ca_bundle_path()
+        if ca_bundle_path is not None:
+            self.session.verify = ca_bundle_path
         self.timeout_seconds = timeout_seconds
         self._session_ready = False
 

@@ -99,12 +99,37 @@ echo Virtual environment .venv already exists.
 echo Installing dependencies (this may take a few minutes) ...
 call ".venv\Scripts\python.exe" -m pip install --upgrade pip
 call ".venv\Scripts\python.exe" -m pip install -r requirements.txt
+if errorlevel 1 goto :install_deps_via_corp_proxy
+goto :install_playwright
+
+:install_deps_via_corp_proxy
+echo.
+echo [INFO] Direct access to PyPI failed. This is common on corporate
+echo networks that inspect SSL/TLS traffic through a proxy (e.g. Zscaler).
+echo Retrying using certificates from the Windows certificate store ...
+set "CORP_CA_BUNDLE="
+for /f "usebackq delims=" %%P in (`".venv\Scripts\python.exe" "%~dp0scripts\build_ca_bundle.py"`) do set "CORP_CA_BUNDLE=%%P"
+if not defined CORP_CA_BUNDLE (
+    echo [ERROR] Failed to install dependencies, and no corporate proxy
+    echo certificate could be found in the Windows certificate store.
+    echo Please check your internet connection and proxy settings.
+    pause
+    exit /b 1
+)
+set "PIP_CERT=%CORP_CA_BUNDLE%"
+set "SSL_CERT_FILE=%CORP_CA_BUNDLE%"
+set "NODE_EXTRA_CA_CERTS=%CORP_CA_BUNDLE%"
+call ".venv\Scripts\python.exe" -m pip install --upgrade pip
+call ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 if errorlevel 1 (
-    echo [ERROR] Failed to install dependencies.
+    echo [ERROR] Failed to install dependencies even with the Windows
+    echo certificate store trusted. Please check your internet connection
+    echo and proxy settings.
     pause
     exit /b 1
 )
 
+:install_playwright
 echo Installing Playwright browser (Chromium) for the fallback download mode ...
 call ".venv\Scripts\python.exe" -m playwright install chromium
 if errorlevel 1 (
