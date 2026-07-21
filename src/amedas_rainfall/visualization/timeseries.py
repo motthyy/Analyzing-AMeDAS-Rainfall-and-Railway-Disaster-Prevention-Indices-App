@@ -21,7 +21,7 @@ INDICATOR_LABELS = {
 }
 
 RAINFALL_BAR_LABELS = {
-    "rainfall_raw_mm": "原時雨量 [mm/h]",
+    "rainfall_raw_mm": "時雨量 [mm/h]",
     "rainfall_used_mm": "閾値処理後時雨量 [mm/h]",
 }
 

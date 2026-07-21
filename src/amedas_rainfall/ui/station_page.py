@@ -180,7 +180,7 @@ def render_station_page(config: AppConfig) -> None:
     st.subheader("ダウンロード計画")
 
     default_start = (
-        st.session_state.get("start_search_result").earliest_valid_datetime.date()
+        dt.date(st.session_state["start_search_result"].earliest_valid_datetime.year, 1, 1)
         if st.session_state.get("start_search_result")
         and st.session_state["start_search_result"].earliest_valid_datetime
         else dt.date(int(manual_year), 1, 1)

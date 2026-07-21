@@ -20,7 +20,7 @@ from amedas_rainfall.visualization.probability import build_probability_figure
 from amedas_rainfall.visualization.styles import PlotStyle
 
 INDICATOR_LABELS_JA = {
-    "rainfall_raw_mm": "原時雨量（年最大時間雨量、比較用）",
+    "rainfall_raw_mm": "時雨量（年最大時間雨量、比較用）",
     "rainfall_used_mm": "閾値処理後時雨量",
     "continuous_rainfall_12h_mm": "12時間無降雨リセット連続雨量",
     "rolling_rainfall_24h_mm": "24時間移動雨量",
@@ -51,7 +51,7 @@ def render_probability_page(config: AppConfig) -> None:
     c1, c2 = st.columns(2)
     with c1:
         indicator = st.selectbox(
-            "指標", list(INDICATOR_LABELS_JA.keys()), index=5, format_func=lambda c: INDICATOR_LABELS_JA[c],
+            "指標", list(INDICATOR_LABELS_JA.keys()), index=0, format_func=lambda c: INDICATOR_LABELS_JA[c],
             key="prob_indicator",
         )
     with c2:
@@ -141,7 +141,9 @@ def render_probability_page(config: AppConfig) -> None:
         table_rows.append(
             {
                 "確率年": t,
-                "確率雨量[mm]": "算出不可" if np.isnan(x) else round(x, 1),
+                # 列を文字列で統一する（"算出不可"とfloatが混在するとpyarrowが
+                # Arrow変換に失敗し、テーブル描画がクラッシュするため）。
+                "確率雨量[mm]": "算出不可" if np.isnan(x) else f"{x:.1f}",
             }
         )
     st.dataframe(pd.DataFrame(table_rows), use_container_width=True, height=300)

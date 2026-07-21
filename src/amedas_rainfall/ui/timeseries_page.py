@@ -55,14 +55,23 @@ def render_timeseries_page(config: AppConfig) -> None:
     preset = st.radio("期間プリセット", PERIOD_PRESETS, horizontal=True, key="ts_period_preset")
     max_ts = indices_df.index.max()
     default_start, default_end = _resolve_period(preset, max_ts)
+
+    # st.date_inputは、2回目以降のスクリプト実行ではvalue引数よりsession_state[key]を
+    # 優先するため、プリセット切り替え時に明示的にsession_stateを上書きしないと
+    # 表示・グラフに反映されない。プリセットが変わった回のみ上書きする。
+    if st.session_state.get("ts_period_preset_prev") != preset:
+        st.session_state["ts_start_date"] = default_start
+        st.session_state["ts_end_date"] = default_end
+        st.session_state["ts_period_preset_prev"] = preset
+
     c1, c2 = st.columns(2)
     with c1:
         start_date = st.date_input(
-            "開始日時", value=default_start, disabled=(preset != "任意期間"), key="ts_start_date"
+            "開始日時", disabled=(preset != "任意期間"), key="ts_start_date"
         )
     with c2:
         end_date = st.date_input(
-            "終了日時", value=default_end, disabled=(preset != "任意期間"), key="ts_end_date"
+            "終了日時", disabled=(preset != "任意期間"), key="ts_end_date"
         )
 
     mask = (indices_df.index.date >= start_date) & (indices_df.index.date <= end_date)
@@ -71,14 +80,14 @@ def render_timeseries_page(config: AppConfig) -> None:
     st.subheader("表示項目")
     bar_column = st.radio(
         "上段（棒グラフ）", ["rainfall_raw_mm", "rainfall_used_mm"], format_func=lambda c: {
-            "rainfall_raw_mm": "原時雨量", "rainfall_used_mm": "閾値処理後時雨量"
+            "rainfall_raw_mm": "時雨量", "rainfall_used_mm": "閾値処理後時雨量"
         }[c], horizontal=True, key="ts_bar_column",
     )
     indicator_options = list(INDICATOR_LABELS.keys())
     selected_indicators = st.multiselect(
         "下段（折れ線グラフ、複数選択可）",
         indicator_options,
-        default=["effective_rainfall_6h_mm"],
+        default=["estimated_soil_rainfall_mm"],
         format_func=lambda c: INDICATOR_LABELS.get(c, c),
         key="ts_selected_indicators",
     )
