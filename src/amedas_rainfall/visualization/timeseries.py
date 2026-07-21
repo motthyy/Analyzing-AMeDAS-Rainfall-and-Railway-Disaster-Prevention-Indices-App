@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import math
+
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from amedas_rainfall.visualization.styles import PlotStyle
+
+MAX_DISPLAY_POINTS = 20_000
+"""この点数を超える期間を表示する際、ピーク(最大値)を保ったまま間引く。
+
+長期間（数十年分）の時別データをそのままPlotlyへ渡すと、図の構築・
+ブラウザへのJSON転送・描画のいずれも著しく重くなる（実測: 67万点で
+図構築16秒+JSON化41秒）。雨量・防災指標はピーク値が最も重要な情報のため、
+単純な間引きではなくバケットごとの最大値を採用し、極端な降雨イベントが
+グラフから消えないようにする。詳細確認が必要な場合は表示期間を絞り込む。
+"""
 
 INDICATOR_LABELS = {
     "continuous_rainfall_12h_mm": "12時間無降雨リセット連続雨量 [mm]",
@@ -26,14 +39,53 @@ RAINFALL_BAR_LABELS = {
 }
 
 
+def _downsample_for_display(
+    df: pd.DataFrame,
+    bar_column: str,
+    indicator_columns: list[str],
+    missing_mask: pd.Series | None,
+    max_points: int,
+) -> tuple[pd.DataFrame, pd.Series | None, bool]:
+    """表示点数がmax_pointsを超える場合、バケットごとの最大値を保ったまま間引く。
+
+    各バケットの代表時刻はバケット内先頭の時刻とする（列ごとに最大値を取る値の
+    実際の発生時刻とは一致しない場合があるが、長期間の概観表示としては許容する。
+    詳細な時刻確認が必要な場合は表示期間を絞り込む）。
+    """
+    n = len(df)
+    if n <= max_points:
+        return df, missing_mask, False
+
+    bucket_size = math.ceil(n / max_points)
+    bucket = np.arange(n) // bucket_size
+
+    cols = [c for c in {bar_column, *indicator_columns} if c in df.columns]
+    grouped = df[cols].groupby(bucket)
+    downsampled = grouped.max()
+    representative_time = df.index.to_series().groupby(bucket).first()
+    downsampled.index = pd.DatetimeIndex(representative_time.values, tz=df.index.tz)
+
+    down_missing = None
+    if missing_mask is not None and bar_column in downsampled.columns:
+        down_missing = downsampled[bar_column].isna()
+
+    return downsampled, down_missing, True
+
+
 def build_timeseries_figure(
     df: pd.DataFrame,
     bar_column: str,
     indicator_columns: list[str],
     style: PlotStyle,
     missing_mask: pd.Series | None = None,
+    max_display_points: int = MAX_DISPLAY_POINTS,
 ) -> go.Figure:
     """上段に時雨量の棒グラフ、下段に選択指標の折れ線グラフを表示する図を作る。"""
+    original_n = len(df)
+    df, missing_mask, was_downsampled = _downsample_for_display(
+        df, bar_column, indicator_columns, missing_mask, max_display_points
+    )
+
     fig = make_subplots(
         rows=2,
         cols=1,
@@ -105,6 +157,23 @@ def build_timeseries_figure(
         )
 
     _apply_common_layout(fig, style)
+
+    if was_downsampled:
+        fig.add_annotation(
+            text=(
+                f"表示高速化のため{original_n:,}点を{len(df):,}点に間引いて表示中"
+                "（各区間の最大値を保持）。詳細確認には表示期間を絞り込んでください。"
+            ),
+            xref="paper",
+            yref="paper",
+            x=1.0,
+            y=1.02,
+            xanchor="right",
+            yanchor="bottom",
+            showarrow=False,
+            font=dict(size=max(style.font_size - 3, 8), color="#b35c00"),
+        )
+
     return fig
 
 
