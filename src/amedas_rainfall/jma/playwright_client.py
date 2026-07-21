@@ -12,7 +12,9 @@ download_manager から透過的に差し替えられるようにする。
 from __future__ import annotations
 
 import logging
+import os
 
+from amedas_rainfall.jma.ca_bundle import ensure_ca_bundle_path
 from amedas_rainfall.jma.direct_client import (
     HOURLY_AGGREGATION_PERIOD,
     HOURLY_PRECIPITATION_ELEMENT_CODE,
@@ -55,6 +57,13 @@ class JmaPlaywrightClient:
         self._page = None
 
     def __enter__(self) -> "JmaPlaywrightClient":
+        # Playwrightの内部通信(APIRequestContext含む)はNode.js製ドライバが
+        # 担うため、社内SSLインスペクションプロキシ配下ではNODE_EXTRA_CA_CERTS
+        # でWindows証明書ストア由来のCAを渡す必要がある。ドライバ起動前に
+        # 環境変数として設定しておく。
+        ca_bundle_path = ensure_ca_bundle_path()
+        if ca_bundle_path is not None:
+            os.environ.setdefault("NODE_EXTRA_CA_CERTS", ca_bundle_path)
         self._pw = self._sync_playwright_factory().start()
         self._browser = self._pw.chromium.launch(headless=self.headless)
         self._context = self._browser.new_context()
