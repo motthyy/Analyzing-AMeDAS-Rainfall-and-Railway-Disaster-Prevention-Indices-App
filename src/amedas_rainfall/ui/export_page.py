@@ -40,19 +40,37 @@ def render_export_page(config: AppConfig) -> None:
 
     basename = f"{station_code}_{station_name}"
 
+    def _make_progress_reporter() -> tuple:
+        status = st.empty()
+        progress = st.progress(0.0)
+
+        def _cb(fraction: float, message: str) -> None:
+            progress.progress(min(max(fraction, 0.0), 1.0))
+            status.info(f"ダウンロード中...　{message}（{fraction * 100:.0f}%）")
+
+        def _clear() -> None:
+            status.empty()
+            progress.empty()
+
+        return _cb, _clear
+
     if st.button("時別データをParquet/CSV/Excelへ出力", key="export_hourly_button"):
+        progress_cb, clear_progress = _make_progress_reporter()
         result = export_hourly_data(
             indices_df,
             config.resolved_path("paths.normalized_dir") / station_code,
             config.resolved_path("paths.output_dir") / "csv",
             config.resolved_path("paths.output_dir") / "excel",
             f"{basename}_hourly",
+            progress_callback=progress_cb,
         )
+        clear_progress()
         if result["excel"] is None:
             st.warning("行数がExcel上限に近いため、Excel出力は省略しました。Parquet/CSVを利用してください。")
         st.success(f"出力しました: {result}")
 
     if st.button("年最大値をParquet/CSV/Excelへ出力", key="export_annual_maxima_button"):
+        progress_cb, clear_progress = _make_progress_reporter()
         maxima_all = compute_annual_maxima_all_boundaries(indices_df)
         per_boundary = {k: v.get("effective_rainfall_6h_mm") for k, v in maxima_all.items()}
         per_boundary = {k: v for k, v in per_boundary.items() if v is not None}
@@ -62,7 +80,9 @@ def render_export_page(config: AppConfig) -> None:
             config.resolved_path("paths.output_dir") / "csv",
             config.resolved_path("paths.output_dir") / "excel",
             f"{basename}_annual_maxima",
+            progress_callback=progress_cb,
         )
+        clear_progress()
         st.success(f"出力しました: {result}")
 
     if st.button("全項目まとめのExcelブックを出力", key="export_full_workbook_button"):
@@ -102,6 +122,7 @@ def render_export_page(config: AppConfig) -> None:
             ]
         )
         excel_path = config.resolved_path("paths.output_dir") / "excel" / f"{basename}_全項目.xlsx"
+        progress_cb, clear_progress = _make_progress_reporter()
         build_full_excel_workbook(
             excel_path,
             station_info_df,
@@ -112,5 +133,7 @@ def render_export_page(config: AppConfig) -> None:
             pd.DataFrame(columns=["year_label", "除外理由"]),
             missing_table,
             conditions_table,
+            progress_callback=progress_cb,
         )
+        clear_progress()
         st.success(f"出力しました: {excel_path}")

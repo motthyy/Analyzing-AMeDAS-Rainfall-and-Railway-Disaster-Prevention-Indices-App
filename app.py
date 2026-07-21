@@ -56,21 +56,24 @@ def main() -> None:
         "鉄道防災用雨量指標・推定土壌雨量指数・ガンベル分布による確率雨量の解析ツールです。"
     )
 
-    tabs = st.tabs(
-        ["地点選択・ダウンロード", "データ品質", "時系列グラフ", "確率雨量グラフ", "データ出力", "マニュアル"]
+    # st.tabs()は非表示のタブも含め、全タブの中身を毎回のスクリプト実行で計算してしまう
+    # （表示/非表示はCSSでの切り替えに過ぎない）。そのため、例えば「地点選択・ダウンロード」
+    # タブで既にダウンロード済みの地点を選択しただけで、裏側で「時系列グラフ」「確率雨量
+    # グラフ」タブの重い指標計算・グラフ構築まで毎回実行されてしまい、フリーズしたように
+    # 見えていた。st.radioで選択中のページのみをレンダリングすることでこれを避ける。
+    pages = {
+        "地点選択・ダウンロード": render_station_page,
+        "データ品質": render_quality_page,
+        "時系列グラフ": render_timeseries_page,
+        "確率雨量グラフ": render_probability_page,
+        "データ出力": render_export_page,
+        "マニュアル": render_manual_page,
+    }
+    selected_page = st.radio(
+        "ページ選択", list(pages.keys()), horizontal=True, key="active_page", label_visibility="collapsed"
     )
-    with tabs[0]:
-        render_station_page(config)
-    with tabs[1]:
-        render_quality_page(config)
-    with tabs[2]:
-        render_timeseries_page(config)
-    with tabs[3]:
-        render_probability_page(config)
-    with tabs[4]:
-        render_export_page(config)
-    with tabs[5]:
-        render_manual_page(config)
+    st.divider()
+    pages[selected_page](config)
 
 
 if __name__ == "__main__":

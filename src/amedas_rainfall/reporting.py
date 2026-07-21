@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Callable
 
 import pandas as pd
 
 EXCEL_MAX_ROWS = 1_048_576
 EXCEL_SAFE_ROW_LIMIT = EXCEL_MAX_ROWS - 10
+
+ProgressCallback = Callable[[float, str], None]
+
+
+def _report(callback: ProgressCallback | None, fraction: float, message: str) -> None:
+    if callback is not None:
+        callback(fraction, message)
 
 
 def _strip_tz(value):
@@ -38,6 +46,7 @@ def export_hourly_data(
     output_dir_csv: Path,
     output_dir_excel: Path,
     basename: str,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Path | None]:
     """時別データをParquet/CSV/Excelへ出力する。行数がExcel上限を超える場合はExcelを省略する。"""
     output_dir_parquet.mkdir(parents=True, exist_ok=True)
@@ -46,16 +55,22 @@ def export_hourly_data(
 
     parquet_path = output_dir_parquet / f"{basename}.parquet"
     csv_path = output_dir_csv / f"{basename}.csv"
+
+    _report(progress_callback, 0.0, "Parquetファイルを書き出しています")
     df.to_parquet(parquet_path)
+
+    _report(progress_callback, 0.4, "CSVファイルを書き出しています")
     df.to_csv(csv_path, encoding="utf-8-sig")
 
     excel_path: Path | None = output_dir_excel / f"{basename}.xlsx"
     if len(df) > EXCEL_SAFE_ROW_LIMIT:
         excel_path = None  # Excel上限超過のため出力しない（CSV/Parquetを案内）
     else:
+        _report(progress_callback, 0.7, "Excelファイルを書き出しています")
         with pd.ExcelWriter(excel_path, engine="xlsxwriter") as writer:
             _strip_timezone_for_excel(df).to_excel(writer, sheet_name="時別データ")
 
+    _report(progress_callback, 1.0, "出力が完了しました")
     return {"parquet": parquet_path, "csv": csv_path, "excel": excel_path}
 
 
@@ -65,11 +80,13 @@ def export_annual_maxima(
     output_dir_csv: Path,
     output_dir_excel: Path,
     basename: str,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Path]:
     output_dir_parquet.mkdir(parents=True, exist_ok=True)
     output_dir_csv.mkdir(parents=True, exist_ok=True)
     output_dir_excel.mkdir(parents=True, exist_ok=True)
 
+    _report(progress_callback, 0.0, "年最大値をまとめています")
     combined = pd.concat(
         [df.assign(year_boundary_type=key) for key, df in maxima_by_boundary.items()],
         ignore_index=True,
@@ -77,14 +94,20 @@ def export_annual_maxima(
     parquet_path = output_dir_parquet / f"{basename}.parquet"
     csv_path = output_dir_csv / f"{basename}.csv"
     excel_path = output_dir_excel / f"{basename}.xlsx"
+
+    _report(progress_callback, 0.2, "Parquetファイルを書き出しています")
     combined.to_parquet(parquet_path)
+
+    _report(progress_callback, 0.4, "CSVファイルを書き出しています")
     combined.to_csv(csv_path, index=False, encoding="utf-8-sig")
 
+    _report(progress_callback, 0.6, "Excelファイルを書き出しています")
     sheet_name_map = {"calendar": "年最大値_暦年", "fiscal": "年最大値_年度", "june_start": "年最大値_6月始まり"}
     with pd.ExcelWriter(excel_path, engine="xlsxwriter") as writer:
         for key, df in maxima_by_boundary.items():
             _strip_timezone_for_excel(df).to_excel(writer, sheet_name=sheet_name_map.get(key, key)[:31], index=False)
 
+    _report(progress_callback, 1.0, "出力が完了しました")
     return {"parquet": parquet_path, "csv": csv_path, "excel": excel_path}
 
 
@@ -122,6 +145,7 @@ def build_full_excel_workbook(
     excluded_years_table: pd.DataFrame,
     missing_data_table: pd.DataFrame,
     calculation_conditions: pd.DataFrame,
+    progress_callback: ProgressCallback | None = None,
 ) -> Path:
     """15節の全シート構成を持つExcelブックを1ファイルにまとめて出力する。
 
@@ -130,10 +154,21 @@ def build_full_excel_workbook(
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     sheet_name_map = {"calendar": "年最大値_暦年", "fiscal": "年最大値_年度", "june_start": "年最大値_6月始まり"}
+    # シート書き込みの合計数（進捗率の分母）: 地点情報+時別データ+年最大値3種+確率雨量+
+    # ガンベル推定値+除外年+欠測一覧+計算条件
+    total_steps = 4 + len(annual_maxima_by_boundary)
+    step = 0
+
+    def _step(message: str) -> None:
+        nonlocal step
+        _report(progress_callback, step / total_steps, message)
+        step += 1
 
     with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
+        _step("地点情報シートを書き出しています")
         _strip_timezone_for_excel(station_info).to_excel(writer, sheet_name="地点情報", index=False)
 
+        _step("時別データシートを書き出しています")
         if hourly_df is not None and len(hourly_df) <= EXCEL_SAFE_ROW_LIMIT:
             _strip_timezone_for_excel(hourly_df).to_excel(writer, sheet_name="時別データ")
         else:
@@ -148,10 +183,12 @@ def build_full_excel_workbook(
             note_df.to_excel(writer, sheet_name="時別データ", index=False)
 
         for key, df in annual_maxima_by_boundary.items():
+            _step(f"{sheet_name_map.get(key, key)}シートを書き出しています")
             _strip_timezone_for_excel(df).to_excel(
                 writer, sheet_name=sheet_name_map.get(key, key)[:31], index=False
             )
 
+        _step("確率雨量・ガンベル推定値・除外年・欠測一覧・計算条件シートを書き出しています")
         _strip_timezone_for_excel(probability_table).to_excel(writer, sheet_name="確率雨量", index=False)
         _strip_timezone_for_excel(gumbel_parameters_table).to_excel(
             writer, sheet_name="ガンベル推定値", index=False
@@ -162,6 +199,7 @@ def build_full_excel_workbook(
             writer, sheet_name="計算条件", index=False
         )
 
+    _report(progress_callback, 1.0, "出力が完了しました")
     return output_path
 
 
