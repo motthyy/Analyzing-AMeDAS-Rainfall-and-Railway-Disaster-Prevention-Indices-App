@@ -1,0 +1,52 @@
+{
+  "year_windows_2025": {
+    "calendar": {
+      "start": "2025-01-01T00:00:00+09:00",
+      "end": "2026-01-01T00:00:00+09:00"
+    },
+    "fiscal": {
+      "start": "2025-04-01T00:00:00+09:00",
+      "end": "2026-04-01T00:00:00+09:00"
+    },
+    "june_start": {
+      "start": "2025-06-01T00:00:00+09:00",
+      "end": "2026-06-01T00:00:00+09:00"
+    }
+  },
+  "maxima_input_seed": 7,
+  "maxima_input_n_hours": 9600,
+  "maxima": [
+    {
+      "year_label": "2020年",
+      "start_year": 2020,
+      "max_value": 49.99279484270108,
+      "max_datetime": "2020-11-15T04:00:00+09:00"
+    },
+    {
+      "year_label": "2021年",
+      "start_year": 2021,
+      "max_value": 49.925980147136436,
+      "max_datetime": "2021-01-22T00:00:00+09:00"
+    }
+  ],
+  "completeness": [
+    {
+      "year_label": "2020年",
+      "expected_hours": 8784,
+      "valid_hours": 8760,
+      "missing_hours": 24,
+      "completeness_percent": 99.72677595628416,
+      "is_eligible_default": true,
+      "exclusion_reasons": []
+    },
+    {
+      "year_label": "2021年",
+      "expected_hours": 816,
+      "valid_hours": 816,
+      "missing_hours": 0,
+      "completeness_percent": 100.0,
+      "is_eligible_default": true,
+      "exclusion_reasons": []
+    }
+  ]
+}

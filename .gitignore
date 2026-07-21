@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
+core/target/
+node_modules/
 *.pyc
 .pytest_cache/
 .mypy_cache/

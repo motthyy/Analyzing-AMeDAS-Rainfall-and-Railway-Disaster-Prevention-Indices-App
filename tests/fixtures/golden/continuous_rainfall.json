@@ -1,0 +1,176 @@
+{
+  "accumulates_during_rain": {
+    "input": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "continuous_rainfall_12h_mm": [
+      1.0,
+      3.0,
+      6.0
+    ],
+    "dry_hours": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rain_event_id": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "state_reset_due_to_gap": [
+      true,
+      false,
+      false
+    ],
+    "warmup_flag": [
+      true,
+      false,
+      false
+    ]
+  },
+  "holds_then_resets_then_new_event": {
+    "input": [
+      5.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      3.0
+    ],
+    "continuous_rainfall_12h_mm": [
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      5.0,
+      0.0,
+      3.0
+    ],
+    "dry_hours": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0,
+      10.0,
+      11.0,
+      12.0,
+      0.0
+    ],
+    "rain_event_id": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      2.0
+    ],
+    "state_reset_due_to_gap": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "warmup_flag": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "gap_resets_with_flags": {
+    "input": [
+      5.0,
+      5.0,
+      null,
+      null,
+      2.0
+    ],
+    "continuous_rainfall_12h_mm": [
+      5.0,
+      10.0,
+      null,
+      null,
+      2.0
+    ],
+    "dry_hours": [
+      0.0,
+      0.0,
+      null,
+      null,
+      0.0
+    ],
+    "rain_event_id": [
+      1.0,
+      1.0,
+      null,
+      null,
+      2.0
+    ],
+    "state_reset_due_to_gap": [
+      true,
+      false,
+      false,
+      false,
+      true
+    ],
+    "warmup_flag": [
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  }
+}
