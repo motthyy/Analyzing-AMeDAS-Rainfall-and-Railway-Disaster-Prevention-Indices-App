@@ -98,6 +98,13 @@ def build_timeseries_figure(
         df, bar_column, indicator_columns, missing_mask, max_display_points
     )
 
+    if df.index.tz is not None:
+        # tz付きのDatetimeIndexはPandasのTimestampオブジェクトのまま(dtype=object)で
+        # 保持されるため、Kaleido v1のシリアライザ(orjson)がJSON化に失敗し画像出力が
+        # 例外で落ちる。表示は常にJSTのローカル時刻のままでよいため、tz情報だけを
+        # 落として(数値は変えず)ネイティブなdatetime64にし、シリアライズ可能にする。
+        df = df.tz_localize(None)
+
     fig = make_subplots(
         rows=2,
         cols=1,
