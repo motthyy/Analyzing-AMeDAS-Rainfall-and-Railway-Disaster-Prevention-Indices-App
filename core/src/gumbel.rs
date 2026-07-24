@@ -6,7 +6,9 @@
 //! 浮動小数点誤差の都合上、scipy版とは1e-6程度の相対誤差が生じ得る
 //! （数値一致ではなく統計的等価性の確認とする）。
 
-pub const EULER_MASCHERONI: f64 = 0.5772156649015329;
+/// Excel（r_max_c(manual ver.).xlsm）のrp_inシート `=C2-0.5772*C4` に合わせた
+/// オイラー・マスケローニ定数の近似値（厳密値0.5772156649015329...ではない）。
+pub const EULER_MASCHERONI: f64 = 0.5772;
 
 pub const STANDARD_RETURN_PERIODS: &[f64] = &[
     1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0,
@@ -33,7 +35,8 @@ pub fn fit_gumbel_moments(annual_maxima: &[f64]) -> GumbelParameters {
     let data = clean(annual_maxima);
     let n = data.len() as f64;
     let mean = data.iter().sum::<f64>() / n;
-    let variance = data.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    // Excelの STDEV.P（母標準偏差、ddof=0）と一致させる。
+    let variance = data.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
     let std = variance.sqrt();
     let beta = 6.0_f64.sqrt() * std / std::f64::consts::PI;
     let mu = mean - EULER_MASCHERONI * beta;

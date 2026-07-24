@@ -57,7 +57,7 @@ def _downsample_for_display(
     indicator_columns: list[str],
     missing_mask: pd.Series | None,
     max_points: int,
-) -> tuple[pd.DataFrame, pd.Series | None, bool]:
+) -> tuple[pd.DataFrame, pd.Series | None]:
     """表示点数がmax_pointsを超える場合、バケットごとの最大値を保ったまま間引く。
 
     各バケットの代表時刻はバケット内先頭の時刻とする（列ごとに最大値を取る値の
@@ -66,7 +66,7 @@ def _downsample_for_display(
     """
     n = len(df)
     if n <= max_points:
-        return df, missing_mask, False
+        return df, missing_mask
 
     bucket_size = math.ceil(n / max_points)
     bucket = np.arange(n) // bucket_size
@@ -81,7 +81,7 @@ def _downsample_for_display(
     if missing_mask is not None and bar_column in downsampled.columns:
         down_missing = downsampled[bar_column].isna()
 
-    return downsampled, down_missing, True
+    return downsampled, down_missing
 
 
 def build_timeseries_figure(
@@ -93,8 +93,7 @@ def build_timeseries_figure(
     max_display_points: int = MAX_DISPLAY_POINTS,
 ) -> go.Figure:
     """上段に時雨量の棒グラフ、下段に選択指標の折れ線グラフを表示する図を作る。"""
-    original_n = len(df)
-    df, missing_mask, was_downsampled = _downsample_for_display(
+    df, missing_mask = _downsample_for_display(
         df, bar_column, indicator_columns, missing_mask, max_display_points
     )
 
@@ -194,22 +193,6 @@ def build_timeseries_figure(
         )
 
     _apply_common_layout(fig, style)
-
-    if was_downsampled:
-        fig.add_annotation(
-            text=(
-                f"表示高速化のため{original_n:,}点を{len(df):,}点に間引いて表示中"
-                "（各区間の最大値を保持）。詳細確認には表示期間を絞り込んでください。"
-            ),
-            xref="paper",
-            yref="paper",
-            x=1.0,
-            y=1.02,
-            xanchor="right",
-            yanchor="bottom",
-            showarrow=False,
-            font=dict(size=max(style.font_size - 3, 8), color="#b35c00"),
-        )
 
     return fig
 

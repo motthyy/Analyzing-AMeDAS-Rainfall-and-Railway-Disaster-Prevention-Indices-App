@@ -165,6 +165,10 @@ def render_station_page(config: AppConfig) -> None:
                 wait_seconds=config.get("download.normal_wait_seconds", 3.0),
             )
         st.session_state["start_search_result"] = result
+        if result.earliest_valid_datetime:
+            # st.date_inputはkeyが既にsession_stateにある場合value引数を無視するため、
+            # ここでウィジェット生成前に直接書き換える。ユーザーは以降自由に変更できる。
+            st.session_state["station_plan_start"] = dt.date(result.earliest_valid_datetime.year, 1, 1)
 
     if "start_search_result" in st.session_state:
         result = st.session_state["start_search_result"]

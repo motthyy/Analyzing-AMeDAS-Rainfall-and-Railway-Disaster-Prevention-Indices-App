@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy import stats
 
-EULER_MASCHERONI = 0.5772156649015329
+EULER_MASCHERONI = 0.5772
+"""オイラー・マスケローニ定数の近似値。
+
+Excel（r_max_c(manual ver.).xlsm）のrp_inシートの数式`=C2-0.5772*C4`に合わせ、
+数学的な厳密値（0.5772156649015329...）ではなくExcelが用いる4桁の近似値を
+そのまま使う（積率法の結果をExcelと完全に一致させるため）。"""
 
 STANDARD_RETURN_PERIODS: list[float] = list(range(1, 31)) + [50, 100]
 
@@ -56,17 +61,17 @@ def fit_gumbel_mle(annual_maxima: np.ndarray) -> GumbelParameters:
 
 
 def fit_gumbel_moments(annual_maxima: np.ndarray) -> GumbelParameters:
-    """積率法によるガンベル分布パラメータ推定。
+    """積率法によるガンベル分布パラメータ推定（Excel r_max_c(manual ver.).xlsmのrp_inシートと同一の計算式）。
 
-    beta = sqrt(6) * s / pi
-    mu = mean - オイラー・マスケローニ定数 * beta
+    beta = sqrt(6) * s / pi   （sは母標準偏差、Excelの STDEV.P に相当。ddof=0）
+    mu = mean - 0.5772 * beta
     """
     data = np.asarray(annual_maxima, dtype=float)
     data = data[~np.isnan(data)]
     if len(data) < 2:
         raise ValueError("積率法には少なくとも2年分の年最大値が必要です。")
     mean = float(np.mean(data))
-    std = float(np.std(data, ddof=1))
+    std = float(np.std(data, ddof=0))
     beta = math.sqrt(6.0) * std / math.pi
     mu = mean - EULER_MASCHERONI * beta
     return GumbelParameters(loc_mu=mu, scale_beta=beta, method="moments", n_samples=len(data))

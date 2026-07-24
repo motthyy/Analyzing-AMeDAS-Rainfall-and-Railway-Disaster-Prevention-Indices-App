@@ -10,10 +10,76 @@ echo Please choose a setup option:
 echo   [1] Install Python 3.11 automatically, then install required libraries
 echo       (choose this if Python 3.11 is not installed on this PC yet)
 echo   [2] Python 3.11 is already installed - install required libraries only
+echo   [3] Check current setup status (Python / venv / libraries / Playwright)
 echo.
-choice /c 12 /n /m "Enter 1 or 2: "
+choice /c 123 /n /m "Enter 1, 2, or 3: "
+if errorlevel 3 goto :check_status
 if errorlevel 2 goto :find_existing_python
 goto :install_python_311
+
+:check_status
+echo.
+echo ============================================================
+echo Current Setup Status
+echo ============================================================
+echo.
+
+set "STATUS_PY_LAUNCHER=py -3.11"
+where py >nul 2>nul
+if errorlevel 1 set "STATUS_PY_LAUNCHER=python"
+%STATUS_PY_LAUNCHER% -c "import sys" >nul 2>nul
+if errorlevel 1 (
+    echo [NG] Python 3.11            : not found
+) else (
+    for /f "delims=" %%V in ('%STATUS_PY_LAUNCHER% --version 2^>^&1') do set "STATUS_PY_VER=%%V"
+    echo [OK] Python 3.11            : !STATUS_PY_VER!
+)
+
+if exist ".venv\Scripts\python.exe" (
+    echo [OK] Virtual environment    : .venv found
+) else (
+    echo [NG] Virtual environment    : .venv not found
+)
+
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import streamlit, pandas, numpy, scipy, plotly, playwright, requests, httpx, bs4, openpyxl, xlsxwriter, pyarrow, yaml, tenacity, pytz" >nul 2>nul
+    if errorlevel 1 (
+        echo [NG] Required libraries     : missing or incomplete
+    ) else (
+        echo [OK] Required libraries     : installed
+    )
+) else (
+    echo [--] Required libraries     : skipped, no virtual environment
+)
+
+set "STATUS_PLAYWRIGHT_FOUND=0"
+if exist "%LOCALAPPDATA%\ms-playwright" (
+    for /d %%D in ("%LOCALAPPDATA%\ms-playwright\chromium-*") do set "STATUS_PLAYWRIGHT_FOUND=1"
+)
+if "!STATUS_PLAYWRIGHT_FOUND!"=="1" (
+    echo [OK] Playwright Chromium    : installed
+) else (
+    echo [NG] Playwright Chromium    : not installed
+)
+
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import amedas_rainfall" >nul 2>nul
+    if errorlevel 1 (
+        echo [NG] Project package        : amedas_rainfall not installed
+    ) else (
+        echo [OK] Project package        : amedas_rainfall installed
+    )
+) else (
+    echo [--] Project package        : skipped, no virtual environment
+)
+
+echo.
+echo ============================================================
+echo If any item above shows [NG], run install.bat again and
+echo choose option 1 or 2 to set it up.
+echo ============================================================
+pause
+exit /b 0
 
 :install_python_311
 set "PYTHON_VERSION=3.11.9"
@@ -108,7 +174,11 @@ echo [INFO] Direct access to PyPI failed. This is common on corporate
 echo networks that inspect SSL/TLS traffic through a proxy (e.g. Zscaler).
 echo Retrying using certificates from the Windows certificate store ...
 set "CORP_CA_BUNDLE="
-for /f "usebackq delims=" %%P in (`".venv\Scripts\python.exe" "%~dp0scripts\build_ca_bundle.py"`) do set "CORP_CA_BUNDLE=%%P"
+set "CA_BUNDLE_TMP=%TEMP%\amedas_rainfall_ca_bundle_path.txt"
+del "%CA_BUNDLE_TMP%" >nul 2>nul
+".venv\Scripts\python.exe" "%~dp0scripts\build_ca_bundle.py" > "%CA_BUNDLE_TMP%"
+if exist "%CA_BUNDLE_TMP%" set /p CORP_CA_BUNDLE=<"%CA_BUNDLE_TMP%"
+del "%CA_BUNDLE_TMP%" >nul 2>nul
 if not defined CORP_CA_BUNDLE (
     echo [ERROR] Failed to install dependencies, and no corporate proxy
     echo certificate could be found in the Windows certificate store.

@@ -18,6 +18,7 @@ if str(SRC_DIR) not in sys.path:
 import streamlit as st  # noqa: E402
 
 from amedas_rainfall.config import get_default_config  # noqa: E402
+from amedas_rainfall.ui.annual_maxima_page import render_annual_maxima_page  # noqa: E402
 from amedas_rainfall.ui.export_page import render_export_page  # noqa: E402
 from amedas_rainfall.ui.manual_page import render_manual_page  # noqa: E402
 from amedas_rainfall.ui.probability_page import render_probability_page  # noqa: E402
@@ -56,6 +57,27 @@ def main() -> None:
         "鉄道防災用雨量指標・推定土壌雨量指数・ガンベル分布による確率雨量の解析ツールです。"
     )
 
+    # ページ選択(st.radio)を、本文をスクロールしても常時見える状態で固定表示する。
+    # data-testid="stElementContainer"は各要素を包むdiv（Streamlit 1.3x以降）。
+    # 直前に置いた目印(id="page-nav-anchor")を含むコンテナの次の兄弟コンテナ
+    # （＝ラジオボタン本体）だけをposition: stickyにする。
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stElementContainer"]:has(#page-nav-anchor) + div[data-testid="stElementContainer"] {
+            position: sticky;
+            top: 2.875rem;
+            z-index: 999;
+            background-color: var(--background-color, #ffffff);
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        </style>
+        <div id="page-nav-anchor"></div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # st.tabs()は非表示のタブも含め、全タブの中身を毎回のスクリプト実行で計算してしまう
     # （表示/非表示はCSSでの切り替えに過ぎない）。そのため、例えば「地点選択・ダウンロード」
     # タブで既にダウンロード済みの地点を選択しただけで、裏側で「時系列グラフ」「確率雨量
@@ -65,6 +87,7 @@ def main() -> None:
         "地点選択・ダウンロード": render_station_page,
         "データ品質": render_quality_page,
         "時系列グラフ": render_timeseries_page,
+        "年最大値グラフ": render_annual_maxima_page,
         "確率雨量グラフ": render_probability_page,
         "データ出力": render_export_page,
         "マニュアル": render_manual_page,

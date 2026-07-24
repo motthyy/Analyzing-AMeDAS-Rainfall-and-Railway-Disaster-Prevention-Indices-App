@@ -30,10 +30,14 @@ def test_mle_matches_scipy_directly() -> None:
 
 
 def test_moments_formula_matches_manual_calculation() -> None:
+    """Excel（r_max_c(manual ver.).xlsm）のrp_inシートの数式と同一の計算式であることを確認する。
+
+    beta = SQRT(6)/PI() * STDEV.P(...)、mu = mean - 0.5772 * beta。
+    """
     mean = SAMPLE_DATA.mean()
-    std = SAMPLE_DATA.std(ddof=1)
+    std = SAMPLE_DATA.std(ddof=0)
     expected_beta = math.sqrt(6) * std / math.pi
-    expected_mu = mean - 0.5772156649015329 * expected_beta
+    expected_mu = mean - 0.5772 * expected_beta
     result = fit_gumbel_moments(SAMPLE_DATA)
     assert result.scale_beta == pytest.approx(expected_beta)
     assert result.loc_mu == pytest.approx(expected_mu)

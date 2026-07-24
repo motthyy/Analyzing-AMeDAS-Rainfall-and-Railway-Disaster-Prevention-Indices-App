@@ -97,12 +97,6 @@ def render_timeseries_page(config: AppConfig) -> None:
 
     mask = (indices_df.index.date >= start_date) & (indices_df.index.date <= end_date)
     view = indices_df.loc[mask]
-    period_days = (end_date - start_date).days
-    if period_days > 366:
-        st.caption(
-            f"選択期間: {period_days:,}日分。長期間表示では自動間引き（ピーク値保持）"
-            "とWebGL描画で高速化していますが、詳細確認には表示期間を絞り込んでください。"
-        )
 
     st.subheader("表示項目")
     bar_column = st.radio(
