@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 
 from amedas_rainfall.visualization.styles import PlotStyle
 
-MAX_DISPLAY_POINTS = 20_000
+MAX_DISPLAY_POINTS = 5_000
 """この点数を超える期間を表示する際、ピーク(最大値)を保ったまま間引く。
 
 長期間（数十年分）の時別データをそのままPlotlyへ渡すと、図の構築・
@@ -19,6 +19,18 @@ MAX_DISPLAY_POINTS = 20_000
 図構築16秒+JSON化41秒）。雨量・防災指標はピーク値が最も重要な情報のため、
 単純な間引きではなくバケットごとの最大値を採用し、極端な降雨イベントが
 グラフから消えないようにする。詳細確認が必要な場合は表示期間を絞り込む。
+"""
+
+BAR_RENDER_MAX_POINTS = 2_000
+"""この点数を超える場合、時雨量をgo.Bar（SVG）ではなくgo.Scattergl（WebGL）の
+塗りつぶし線で描画する。
+
+go.Barは棒1本ごとにSVG要素を生成するため、万単位の本数になるとブラウザの
+描画スレッドが長時間ブロックされる（実測: 20,000点をgo.Barで描画すると、
+CPU 6倍スロットリング環境で期間変更のたびに合計約9.6秒のロングタスクが
+発生し、操作不能な「フリーズ」状態になる）。WebGL描画に切り替えることで
+同じ視覚情報（各時刻の降雨強度）を保ちながら描画コストを桁違いに削減できる。
+短期間表示では棒グラフの方が判読しやすいため、閾値以下ではgo.Barを維持する。
 """
 
 INDICATOR_LABELS = {
@@ -95,17 +107,35 @@ def build_timeseries_figure(
         subplot_titles=(RAINFALL_BAR_LABELS.get(bar_column, bar_column), "選択指標"),
     )
 
-    fig.add_trace(
-        go.Bar(
-            x=df.index,
-            y=df[bar_column],
-            name=RAINFALL_BAR_LABELS.get(bar_column, bar_column),
-            marker_color=style.style_cycle()[0]["color"],
-            width=None,
-        ),
-        row=1,
-        col=1,
-    )
+    bar_color = style.style_cycle()[0]["color"]
+    if len(df) > BAR_RENDER_MAX_POINTS:
+        # 大量点数はSVGのgo.Barだとブラウザが固まるため、WebGL(Scattergl)の
+        # 塗りつぶし線（階段状）で見た目を維持しつつ描画コストを抑える。
+        fig.add_trace(
+            go.Scattergl(
+                x=df.index,
+                y=df[bar_column],
+                name=RAINFALL_BAR_LABELS.get(bar_column, bar_column),
+                mode="lines",
+                line=dict(width=0.5, color=bar_color, shape="hv"),
+                fill="tozeroy",
+                fillcolor=bar_color,
+            ),
+            row=1,
+            col=1,
+        )
+    else:
+        fig.add_trace(
+            go.Bar(
+                x=df.index,
+                y=df[bar_column],
+                name=RAINFALL_BAR_LABELS.get(bar_column, bar_column),
+                marker_color=bar_color,
+                width=None,
+            ),
+            row=1,
+            col=1,
+        )
 
     cycle = style.style_cycle()
     for i, col in enumerate(indicator_columns):
@@ -113,7 +143,7 @@ def build_timeseries_figure(
             continue
         sc = cycle[i % len(cycle)]
         fig.add_trace(
-            go.Scatter(
+            go.Scattergl(
                 x=df.index,
                 y=df[col],
                 mode="lines",
@@ -128,7 +158,7 @@ def build_timeseries_figure(
         missing_times = df.index[missing_mask.reindex(df.index, fill_value=False)]
         if len(missing_times) > 0:
             fig.add_trace(
-                go.Scatter(
+                go.Scattergl(
                     x=missing_times,
                     y=[0] * len(missing_times),
                     mode="markers",

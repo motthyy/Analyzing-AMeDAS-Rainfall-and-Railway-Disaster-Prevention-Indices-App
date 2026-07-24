@@ -2,9 +2,18 @@
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
-set "SHORTCUT_PATH=%USERPROFILE%\Desktop\Amedas Rainfall App.lnk"
 
 echo Creating desktop shortcut for run.bat ...
+
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "([Environment]::GetFolderPath('Desktop'))"`) do set "DESKTOP_DIR=%%D"
+
+if not defined DESKTOP_DIR (
+    echo [ERROR] Could not determine Desktop folder location.
+    pause
+    exit /b 1
+)
+
+set "SHORTCUT_PATH=%DESKTOP_DIR%\Amedas Rainfall App.lnk"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%'); $s.TargetPath = '%SCRIPT_DIR%run.bat'; $s.WorkingDirectory = '%SCRIPT_DIR%'; $s.IconLocation = 'shell32.dll,220'; $s.Description = 'Amedas Long-term Rainfall / Railway Disaster Prevention Analysis App'; $s.Save()"
 

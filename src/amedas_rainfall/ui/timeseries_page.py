@@ -14,10 +14,10 @@ from amedas_rainfall.visualization.export import build_export_filename, export_f
 from amedas_rainfall.visualization.styles import PlotStyle
 from amedas_rainfall.visualization.timeseries import INDICATOR_LABELS, build_timeseries_figure
 
-PERIOD_PRESETS = ["最新31日", "今月", "前月", "任意期間"]
+PERIOD_PRESETS = ["最新31日", "今月", "前月", "全期間", "任意期間"]
 
 
-def _resolve_period(preset: str, max_ts: pd.Timestamp) -> tuple[dt.date, dt.date]:
+def _resolve_period(preset: str, min_ts: pd.Timestamp, max_ts: pd.Timestamp) -> tuple[dt.date, dt.date]:
     today = max_ts.date()
     if preset == "最新31日":
         return today - dt.timedelta(days=31), today
@@ -28,6 +28,8 @@ def _resolve_period(preset: str, max_ts: pd.Timestamp) -> tuple[dt.date, dt.date
         first_this_month = today.replace(day=1)
         last_month_end = first_this_month - dt.timedelta(days=1)
         return last_month_end.replace(day=1), last_month_end
+    if preset == "全期間":
+        return min_ts.date(), today
     return today - dt.timedelta(days=31), today
 
 
@@ -53,8 +55,11 @@ def render_timeseries_page(config: AppConfig) -> None:
 
     st.subheader("表示期間")
     preset = st.radio("期間プリセット", PERIOD_PRESETS, horizontal=True, key="ts_period_preset")
+    min_ts = indices_df.index.min()
     max_ts = indices_df.index.max()
-    default_start, default_end = _resolve_period(preset, max_ts)
+    data_min_date = min_ts.date()
+    data_max_date = max_ts.date()
+    default_start, default_end = _resolve_period(preset, min_ts, max_ts)
 
     # st.date_inputは、2回目以降のスクリプト実行ではvalue引数よりsession_state[key]を
     # 優先するため、プリセット切り替え時に明示的にsession_stateを上書きしないと
@@ -64,18 +69,40 @@ def render_timeseries_page(config: AppConfig) -> None:
         st.session_state["ts_end_date"] = default_end
         st.session_state["ts_period_preset_prev"] = preset
 
+    # min_value/max_valueを明示しないと、st.date_inputは初回表示時の値から前後10年を
+    # 暗黙のうちに選択可能範囲としてしまう。実データの範囲（数十年分）より狭いと、
+    # 任意期間でそれより古い日付を入力してもエラー表示のまま無反応になり、
+    # 「フリーズしたように見える」別の不具合の原因になっていた。
     c1, c2 = st.columns(2)
     with c1:
         start_date = st.date_input(
-            "開始日時", disabled=(preset != "任意期間"), key="ts_start_date"
+            "開始日時",
+            disabled=(preset != "任意期間"),
+            min_value=data_min_date,
+            max_value=data_max_date,
+            key="ts_start_date",
         )
     with c2:
         end_date = st.date_input(
-            "終了日時", disabled=(preset != "任意期間"), key="ts_end_date"
+            "終了日時",
+            disabled=(preset != "任意期間"),
+            min_value=data_min_date,
+            max_value=data_max_date,
+            key="ts_end_date",
         )
+
+    if preset == "任意期間" and start_date > end_date:
+        st.error("開始日時が終了日時より後になっています。日付を見直してください。")
+        return
 
     mask = (indices_df.index.date >= start_date) & (indices_df.index.date <= end_date)
     view = indices_df.loc[mask]
+    period_days = (end_date - start_date).days
+    if period_days > 366:
+        st.caption(
+            f"選択期間: {period_days:,}日分。長期間表示では自動間引き（ピーク値保持）"
+            "とWebGL描画で高速化していますが、詳細確認には表示期間を絞り込んでください。"
+        )
 
     st.subheader("表示項目")
     bar_column = st.radio(
